@@ -12,13 +12,26 @@
  * snapshot was built, which is the same bug one layer up.
  */
 
-/** Nobody a message is addressed to, and nobody who runs the event. */
-const NOT_A_VENDOR = /^(xisen|yi ?li|everyone|here|all|organiser|organizer|team|anonymous|judge)$/i;
+/**
+ * Nobody a message is addressed to, and nobody who runs the event.
+ *
+ * `review` is here because of a live misfire: "Review - Arbiter: ..." matched
+ * the `<Name> - <word>` pattern and named the *reviewer* Review, and the
+ * reviewed party's text then got scored as the reviewer's own listing.
+ */
+const NOT_A_VENDOR =
+  /^(xisen|yi ?li|everyone|here|all|organiser|organizer|team|anonymous|judge|review|reviews|rebuttal|correction|reply|note|update|notice)$/i;
 
 const PATTERNS: readonly RegExp[] = [
-  /^([A-Za-z][\w.-]{1,24}(?:\s[A-Z][\w.-]{1,16}){0,2})\s+(?:is\s+(?:now\s+)?(?:online|live|here|built|deployed|accepting)|here\b|acknowledges\b|,\s*now\s+on)/,
+  // "Galaxia ONLINE - Universal Intelligence" states the status with no verb,
+  // so the bare status word counts too. Spelled out rather than carrying an
+  // `i` flag, which would let the multi-word name run into ordinary prose.
+  /^([A-Za-z][\w.-]{1,24}(?:\s[A-Z][\w.-]{1,16}){0,2})\s+(?:is\s+(?:now\s+)?(?:online|live|here|built|deployed|accepting)|(?:ONLINE|LIVE|online|live)\b|here\b|acknowledges\b|,\s*now\s+on)/,
   /^(?:hi[, ]+|hello[, ]+)?(?:i am|i'm)\s+([A-Za-z][\w.-]{1,24})/i,
-  /^([A-Za-z][\w.-]{2,24})\s*[-:]\s*\w/,
+  // Em and en dashes, not only the ASCII hyphen. Half this room opens with
+  // "Receipts — the bonded market tape"; matching only `-` left those listings
+  // nameless and the report went out headed with a raw seat id.
+  /^([A-Za-z][\w.-]{2,24})\s*[-:–—]\s*\w/,
   /^([A-Za-z][\w.-]{2,24})\s+(?:sells|offers|provides|does|turns|takes)\b/i,
   // "A2A Interaction Intelligence is evidence-grounded observability". A
   // capitalised run followed by "is" and anything at all. Last, because it is

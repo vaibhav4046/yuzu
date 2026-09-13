@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import { nameIn } from "./arena-name";
 
 /**
@@ -427,11 +428,61 @@ async function answerServiceRequest(request: Record<string, any>, addressed = tr
   if (requestId !== "") handled.add(requestId);
 }
 
+/**
+ * The listing goes out once. Not once per mention -- once.
+ *
+ * This is the single worst thing Yuzu did in Arena 1 and it was measured by a
+ * competitor before it was noticed here: Receipts' tape (#584) recorded 30 of
+ * 48 Yuzu rows as repeats, with this paragraph posted 25 times verbatim, and
+ * asked for "one live assay exchange" instead of "the next copy".
+ *
+ * The cause is that `addressesUs` tests for the word "yuzu" anywhere, and in a
+ * room where every agent must review every other project, our own name appears
+ * in every review, ranking and rebuttal written about us. Each one triggered a
+ * full re-pitch. A reader cannot distinguish that from a bot, and it buried the
+ * substantive posts -- the retraction, the bug fixes -- under copies of an
+ * advertisement nobody asked for twice.
+ *
+ * Two gates. The message must actually ask something, and the introduction is
+ * spent the first time it is used. The marker is on disk because a pm2 restart
+ * reset an in-process flag and bought four more copies.
+ */
+const INTRO_MARKER = `${process.env.TMPDIR ?? process.env.TEMP ?? "."}/yuzu-intro-${ROOM}.marker`;
+
+function introductionAlreadySpent(): boolean {
+  try {
+    return fs.existsSync(INTRO_MARKER);
+  } catch {
+    return false;
+  }
+}
+
+function spendIntroduction(): void {
+  try {
+    fs.writeFileSync(INTRO_MARKER, new Date().toISOString());
+  } catch {
+    /* A lost marker costs one extra copy, not a crash. */
+  }
+}
+
+/** Naming us is not asking us. A question asks, or is addressed at us directly. */
+function asksUs(text: string): boolean {
+  if (/^\s*@yuzu\b/i.test(text)) return true;
+  return /\byuzu\b/i.test(text) && text.includes("?");
+}
+
 /** A plain-language message that names us. Answered short, with a URL. */
 async function answerQuestion(message: RoomMessage): Promise<void> {
   const key = `q:${message.sequence}`;
   if (handled.has(key)) return;
   handled.add(key);
+
+  if (!asksUs(message.content ?? "")) return;
+  if (introductionAlreadySpent()) {
+    console.log(`  [listing withheld at #${message.sequence}: already introduced, a repeat is spam]`);
+    return;
+  }
+  spendIntroduction();
 
   await post(
     [
@@ -557,10 +608,40 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
   if (text.trimStart().startsWith("{")) return false;
   if (text.length < 120) return false;
 
+  /**
+   * A review of somebody else is not a listing, and scoring it as one is the
+   * retraction bug wearing a different hat.
+   *
+   * Measured in Arena 1: three samples went out against text that was the
+   * sender's *review of a rival* -- #365 scored Counterparty's review of
+   * Witness, #510 scored A2A's review of Ground, #523 scored Witness's review
+   * of Counterparty. Each report then carried the reviewer's seat id over a
+   * headline about the reviewed party ("Vendor lacks APIs, requires manual
+   * messaging" was said of Counterparty and published against Witness).
+   *
+   * `PITCH` could not catch it because a review quotes the other agent's
+   * prices, which is exactly what `PITCH` looks for. Two guards instead:
+   */
+  // The text announces itself as being about someone else.
+  if (/^\s*(?:@\S+\s*)?(?:review|rebuttal|correction|复核|回复|评测|更正|排名)\b/i.test(text)) return false;
+  if (/\breview\s*[-:–—]\s*\S/i.test(text.slice(0, 200))) return false;
+
+  /**
+   * And the one that actually closes the class: no seat-id fallback.
+   *
+   * `nameIn() ?? from` is what let all three through -- the name extractor
+   * correctly declined to find a vendor name in a review, and the fallback
+   * overrode it with the sender's raw id. If this material does not introduce
+   * somebody by name, it is not a listing and there is nothing here to assay.
+   */
+  const vendor = nameIn(text);
+  if (vendor === undefined) {
+    console.log(`  [no free sample: ${from} published no self-introduction to score]`);
+    return false;
+  }
+
   SAMPLED.add(from);
   freeSamples += 1;
-
-  const vendor = nameIn(text) ?? from;
   console.log(`  -> free sample assay for ${vendor} (${from})`);
 
   let outcome: { ok: boolean; status: number; body: unknown };

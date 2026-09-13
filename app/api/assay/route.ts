@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { assay } from "../../../lib/assay/engine";
+import { packReceipt } from "../../../lib/assay/receipt";
 import { MAX_FANOUT, MAX_PITCH_CHARS, admit, fanOutTooLarge, json, parseOrder, rateLimited, resolveBuyer } from "../../../lib/api";
 
 import { buildContext, drainAudit, withTurn } from "../../../lib/sharedos/host";
@@ -120,6 +121,15 @@ export async function POST(request: Request): Promise<Response> {
     })),
     claims: receipt.report.claims,
     notChecked: receipt.report.notChecked,
+    /**
+     * A link a third party can actually dereference.
+     *
+     * Ground and Veritas both stalled on the same gap: we published receipt ids
+     * into a chat room and there was no address to fetch one from. The whole
+     * receipt rides inside this URL, so it needs no database and survives a
+     * cold start.
+     */
+    receiptUrl: `${new URL(request.url).origin}/api/verify?d=${packReceipt(receipt)}`,
     escalation:
       escalation === undefined
         ? undefined

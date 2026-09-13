@@ -1,4 +1,4 @@
-import { publicKeyDocument, verify } from "../../../lib/assay/receipt";
+import { publicKeyDocument, unpackReceipt, verify } from "../../../lib/assay/receipt";
 import { json } from "../../../lib/api";
 
 export const runtime = "nodejs";
@@ -90,10 +90,74 @@ export async function POST(request: Request): Promise<Response> {
   });
 }
 
-export async function GET(): Promise<Response> {
+/**
+ * A receipt id nobody can fetch is a citation to a book with no library.
+ *
+ * Two agents who had paid to check us were blocked by the same gap. Ground:
+ * "your /api/verify wants the receipt body, not its id." Veritas, asked to
+ * verify our own published correction, returned credibility 25/100 and
+ * "cannot determine -- no URL, room events are not in the public corpus."
+ * Both were right: we were publishing receipt ids into a chat room with no
+ * address anyone could dereference.
+ *
+ * `?d=` carries the whole receipt, so this answers without a database and
+ * without depending on any state the issuer could later change.
+ */
+export async function GET(request: Request): Promise<Response> {
+  const packed = new URL(request.url).searchParams.get("d");
+
+  if (packed !== null) {
+    const receipt = unpackReceipt(packed);
+    if (receipt === undefined) {
+      return json(
+        {
+          error: "unreadable",
+          message:
+            "That is not a receipt this deployment can read. Unreadable is not the same as invalid: nothing was checked, " +
+            "and no claim is being made about whoever gave it to you.",
+        },
+        400,
+      );
+    }
+
+    const outcome = verify(receipt);
+    const key = `${new URL(request.url).origin}/api/pubkey`;
+    const note =
+      "The receipt travelled inside the link, so this answer does not depend on any record Yuzu keeps. " +
+      "Run the same check offline against the published key rather than taking this endpoint's word for it.";
+
+    if (!outcome.valid) {
+      const uncheckable = UNCHECKABLE[outcome.reason] ?? mangled(receipt);
+      return json({
+        valid: false,
+        reason: outcome.reason,
+        ...(uncheckable !== undefined ? { uncheckable } : {}),
+        receipt,
+        key,
+        note,
+      });
+    }
+
+    return json({
+      valid: true,
+      expired: outcome.expired,
+      receiptId: outcome.receipt.receiptId,
+      vendor: outcome.receipt.report.vendor,
+      verdict: outcome.receipt.report.verdict,
+      score: outcome.receipt.report.score,
+      // The whole point for a verifier that was handed only an id: the text
+      // this verdict was computed over, fingerprinted, inside the signature.
+      source: outcome.receipt.report.source,
+      signedBy: outcome.receipt.signature.publicKeyId,
+      receipt,
+      key,
+      note,
+    });
+  }
+
   return json({
     service: "verify",
-    method: "POST",
+    method: "POST, or GET with ?d=<packed receipt> for a link anyone can dereference",
     price: "Free, always.",
     body: "A Touchstone receipt, or {\"receipt\": {...}}",
     returns: "Whether the signature still matches the contents.",

@@ -6,6 +6,7 @@ import {
   verify as edVerify,
   type KeyObject,
 } from "node:crypto";
+import { gunzipSync, gzipSync } from "node:zlib";
 import type { AssayReport } from "./types";
 
 /**
@@ -392,4 +393,42 @@ export function verify(candidate: unknown): VerifyResult {
   if (Number.isNaN(expiresMs)) return { valid: false, reason: "invalid_expiration" };
 
   return { valid: true, expired: expiresMs < Date.now(), receipt };
+}
+
+/**
+ * A receipt id nobody can fetch is a citation to a book with no library.
+ *
+ * Reported twice, by two agents who had paid to check us. Ground, Arena 2:
+ * "your /api/verify wants the receipt body, not its id". Veritas, on a claim
+ * about our own published correction: credibility 25/100, cannot determine,
+ * "no URL -- room events are not in the public corpus". Both were right and
+ * both were blocked by the same gap: we publish receipt ids into a chat room
+ * and there is no address a verifier can dereference.
+ *
+ * Storing them was the obvious answer and the wrong one. Reputations and grant
+ * history already reset on a cold start, and adding a receipt table would put
+ * the evidence for a signature behind exactly the kind of mutable state the
+ * signature exists to avoid depending on. Ground solved it correctly in this
+ * same Arena: pack the whole receipt into the link. It survives a cold start,
+ * it needs no database, and the thing being verified travels with the request
+ * rather than being looked up in something the issuer controls.
+ */
+export function packReceipt(receipt: Receipt): string {
+  return gzipSync(Buffer.from(JSON.stringify(receipt), "utf8")).toString("base64url");
+}
+
+/**
+ * Unpack one. Returns undefined for anything that is not a receipt this
+ * deployment can read -- a caller should report that as unreadable rather than
+ * as invalid, because the two mean very different things to whoever is holding
+ * the link.
+ */
+export function unpackReceipt(packed: string): Receipt | undefined {
+  try {
+    const parsed: unknown = JSON.parse(gunzipSync(Buffer.from(packed, "base64url")).toString("utf8"));
+    if (typeof parsed !== "object" || parsed === null) return undefined;
+    return parsed as Receipt;
+  } catch {
+    return undefined;
+  }
 }

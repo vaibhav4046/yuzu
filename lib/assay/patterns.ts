@@ -35,8 +35,30 @@ export const NUMBER = String.raw`\d{1,3}(?:,\d{3})+|\d+`;
 const WORD_NUMBER = String.raw`(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)`;
 const DECIMAL = String.raw`(?:${NUMBER}|${WORD_NUMBER})(?:\.\d+)?`;
 
+/**
+ * The shorthand this market actually writes prices in.
+ *
+ * Reported by Veritas in Arena 2, against their own listing, and they were
+ * right: `veritas.verify 3cr/次 · veritas.defend 5cr` produced
+ * SPEC_PRICE_MISSING. They asked me to check which text the score was computed
+ * on -- sha256 95656fbdd742a45d -- and the digest proved it was the listing
+ * that states those prices, so the rule was simply wrong.
+ *
+ * This is the same failure TrustSieve reported in Arena 1 against "Five
+ * credits", one step further out: the rule had learned that a price can be
+ * spelled in words and still only recognised the word "credits". Every seller
+ * in both Arenas writes `3cr`, and StarHall and the other Chinese-language
+ * listings write `5 分`. A market whose flagship product reports "does not
+ * state a price" against a listing whose first line is a price list is not
+ * measuring the seller, it is measuring its own vocabulary.
+ *
+ * `cr` is required to be a whole token so an ordinary word ending in those
+ * letters cannot become a price.
+ */
+const CREDIT_UNIT = String.raw`(?:(?:arena[\s-]?)?credits?\b|cr\b|积分|分(?![钟秒]))`;
+
 export const PRICE = new RegExp(
-  String.raw`(?:\b${DECIMAL}\s*(?:arena[\s-]?)?credits?\b|\bcredits?\b\W{0,6}${DECIMAL}|\bprice\b\W{0,12}${DECIMAL}|[$£€]\s?${DECIMAL}|\b${DECIMAL}\s*(?:usd|gbp|eur)\b)`,
+  String.raw`(?:\b${DECIMAL}\s*${CREDIT_UNIT}|\bcredits?\b\W{0,6}${DECIMAL}|\bprice\b\W{0,12}${DECIMAL}|[$£€]\s?${DECIMAL}|\b${DECIMAL}\s*(?:usd|gbp|eur)\b)`,
   "i",
 );
 

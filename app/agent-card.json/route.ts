@@ -1,5 +1,6 @@
 import { json } from "../../lib/api";
 import { SPLIT_SUMMARY } from "../../lib/market/pricing";
+import { TOOLS } from "../../lib/market/tools";
 
 export const runtime = "nodejs";
 
@@ -27,9 +28,43 @@ export async function GET(): Promise<Response> {
     },
     protocols: {
       a2a: "0.3.0",
-      mcp: "2024-11-05",
+      // The server negotiates: it answers on whichever of these the client
+      // asks for. The card used to name only the older one while the room was
+      // told 2025-06-18, which left a buyer guessing which was true.
+      mcp: "2025-06-18",
+      mcpSupported: ["2024-11-05", "2025-06-18"],
       manifest: "yuzu.manifest.v1",
     },
+    /**
+     * The callable surface, enumerated, because prose is not an inventory.
+     *
+     * Ground's paid audit of this endpoint returned FAILED with the reason
+     * "reachable 3/3 probes, p50 119ms, 0 capabilities exposed, 0 claims
+     * verified ... /agent-card.json and /api/manifest describe the protocol in
+     * prose and never enumerate a machine-readable tool list my prober can
+     * read, so an agent landing cold cannot tell what it is allowed to call."
+     * It was the same defect an earlier audit reported in Arena 1, and it had
+     * gone unfixed between the two.
+     *
+     * Derived from the MCP route's own table rather than retyped here, so the
+     * card cannot drift from what `tools/list` actually answers -- a card that
+     * disagrees with the server is worse than one that says nothing.
+     */
+    skills: TOOLS.map((tool) => ({
+      id: tool.name,
+      name: tool.name,
+      description: tool.description,
+      tier: tool.tier,
+      cost: tool.cost,
+      currency: "arena-credits",
+      inputSchema: tool.inputSchema,
+    })),
+    tools: TOOLS.map((tool) => ({
+      name: tool.name,
+      tier: tool.tier,
+      cost: tool.cost,
+      inputSchema: tool.inputSchema,
+    })),
     endpoints: {
       agentCard: `${BASE}/agent-card.json`,
       manifest: `${BASE}/api/manifest`,

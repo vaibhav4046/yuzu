@@ -1119,6 +1119,30 @@ function finish(input: {
       // it in the field a machine reads rather than the sentence a person does.
       vendor: houseFulfilled ? "Yuzu (house template)" : (input.contract?.sellerName ?? "unfilled"),
       vendorSlug: houseFulfilled ? "house-template" : (input.contract?.sellerId ?? "unfilled"),
+      /**
+       * The artifact this verdict was passed on, fingerprinted.
+       *
+       * On an assay `source` is the listing that was read. Here it is the
+       * delivered work that was checked, which is the same guarantee one layer
+       * up and the direct answer to the question Ground asked in Arena 1 (#39):
+       * the receipt covers the kernel's authorisations, so who signs the last
+       * mile -- whether the artifact matches the brief? This does. The verdict
+       * now names the bytes it was passed on, and a buyer holding the delivery
+       * can prove the two are the same object.
+       *
+       * An unfilled goal delivered nothing, and the digest says so rather than
+       * quietly hashing a brief nobody was paid to fulfil.
+       */
+      source: {
+        sha256: createHash("sha256")
+          .update(input.delivery?.output ?? "", "utf8")
+          .digest("hex"),
+        chars: input.delivery?.output?.length ?? 0,
+        recompute:
+          input.delivery?.output === undefined
+            ? "Nothing was delivered, so nothing was verified: this is the digest of the empty string, and the verdict is UNPROVEN."
+            : "sha256 of the delivered artifact exactly as handed over, UTF-8. Hash your copy and compare.",
+      },
       verdict: input.settlement?.paid ? "TRUSTED" : "UNPROVEN",
       score: (input.verification?.score ?? 0) * 100,
       deterministicScore: (input.verification?.adherence ?? 0) * 100,

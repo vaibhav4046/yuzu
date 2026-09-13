@@ -47,6 +47,11 @@ function createReceiptFixture(): Receipt {
     report: {
       vendor: "Scout",
       vendorSlug: "scout",
+      source: {
+        sha256: "0000000000000000000000000000000000000000000000000000000000000000",
+        chars: 0,
+        recompute: "fixture",
+      },
       verdict: "TRUSTED",
       score: 90,
       deterministicScore: 90,

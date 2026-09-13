@@ -100,6 +100,10 @@ export async function POST(request: Request): Promise<Response> {
 
   return json({
     verdict: receipt.report.verdict,
+    // What was scored, so the score is separable from whoever scored it. Inside
+    // `receipt.report` too, where the signature covers it -- this copy is for
+    // reading, that one is the evidence.
+    source: receipt.report.source,
     score: receipt.report.score,
     deterministicScore: receipt.report.deterministicScore,
     reproducibility: receipt.report.reproducibility,

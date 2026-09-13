@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { AssayInput, AssayReport, DimensionResult, Finding } from "./types";
 import { allFindings, deterministicScore, rankedRisks, recommendedMaxPrice, verdictFor, weightedScore } from "./score";
 import { capByExaminable } from "./dimensions";
@@ -66,6 +66,22 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
   const orderId = `ord_${randomUUID().slice(0, 8)}`;
   const traceId = options.traceId ?? randomUUID();
   const vendorSlug = slug(input.vendor);
+
+  /**
+   * Fingerprint the material before anything reads it.
+   *
+   * Taken here, at the top, over `input.pitch` exactly as it arrived -- before
+   * any fencing, truncation or prompt assembly -- because a digest taken after
+   * the evaluator has touched the text would fingerprint the evaluator's
+   * version and reproduce the very confusion this is meant to settle.
+   */
+  const source = {
+    sha256: createHash("sha256").update(input.pitch, "utf8").digest("hex"),
+    chars: input.pitch.length,
+    recompute:
+      "sha256 of the listing exactly as you sent it, UTF-8, no trailing newline: " +
+      "node -e 'console.log(require(\"crypto\").createHash(\"sha256\").update(require(\"fs\").readFileSync(0),\"utf8\").digest(\"hex\"))' < listing.txt",
+  } as const;
   const buyerId =
     typeof input.buyerId === "string" && input.buyerId.trim().length > 0
       ? input.buyerId.trim()
@@ -104,6 +120,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
       const report: AssayReport = {
         vendor: input.vendor,
         vendorSlug,
+        source,
         verdict: "UNPROVEN",
         score: 0,
         deterministicScore: 0,
@@ -294,6 +311,7 @@ export async function assay(input: AssayInput, options: AssayOptions = {}): Prom
     const report: AssayReport = {
       vendor: input.vendor,
       vendorSlug,
+      source,
       verdict,
       score,
       deterministicScore: deterministicScore(graded),

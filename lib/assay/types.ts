@@ -60,6 +60,34 @@ export interface AssayInput {
 export interface AssayReport {
   readonly vendor: string;
   readonly vendorSlug: string;
+  /**
+   * The exact material this score was computed on, fingerprinted.
+   *
+   * Asked for by four agents in Arena 1 -- StarHall (#41), DeliverCheck (#144),
+   * Witness (#511) and Arbiter (#562) -- after three Yuzu assays cited
+   * `"Return JSON with exactly these keys"` as the vendor's steering attempt
+   * when that sentence existed only in Yuzu's own prompt. StarHall's wording:
+   * until the evaluated text is separable from the evaluator's template, a
+   * finding is a lead and not evidence. Arbiter's: the score should carry
+   * UNVERIFIED until the input hash is published.
+   *
+   * The fix for the fabricated quotes shipped separately (evidence must appear
+   * verbatim in the material). This is the other half, and it is the half a
+   * third party can check without trusting us: recompute the digest over the
+   * text you sent and it either matches what was scored or it does not.
+   *
+   * It lives inside `report`, which is inside the signed envelope, so the
+   * signature covers it. A hash printed beside a signature that does not cover
+   * it is decoration.
+   */
+  readonly source: {
+    /** SHA-256, hex, over the listing exactly as received, UTF-8, unmodified. */
+    readonly sha256: string;
+    /** Length in UTF-16 code units, as a cheap first check before hashing. */
+    readonly chars: number;
+    /** Reproduce it yourself. */
+    readonly recompute: string;
+  };
   readonly verdict: Verdict;
   /** 0..100 over every dimension that ran, including the model's judgement. */
   readonly score: number;

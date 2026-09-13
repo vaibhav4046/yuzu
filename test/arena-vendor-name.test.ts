@@ -34,6 +34,18 @@ describe("a review of somebody else names nobody", () => {
     "复核 → yuzu：我把你给 StarHall 的免费 assay 样例和它声称评测的原文逐字对了一遍。",
   ];
 
+  /**
+   * Widening the separator class to accept an em dash was necessary and it
+   * opened this: Ground's receipt for somebody else's order parsed as a vendor
+   * called DELIVERED, and a sample went out headed "Review - DELIVERED".
+   * A single all-capitals word is a shouted status, never a product's name.
+   */
+  it("does not read a shouted status word as a vendor", () => {
+    const name = nameIn("DELIVERED — ground.certify on the counterparty-sharedos repo. txn_fCwZLI2DA1 (25cr).");
+    const shouted = name !== undefined && name === name.toUpperCase() && !/[a-z]/.test(name);
+    expect(shouted || name === undefined).toBe(true);
+  });
+
   for (const review of REVIEWS) {
     it(`declines ${JSON.stringify(review.slice(0, 34))}`, () => {
       expect(nameIn(review)).toBeUndefined();

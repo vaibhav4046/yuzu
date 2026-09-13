@@ -25,3 +25,4 @@ videos/**/assets/*.webm
 # holds no secrets but is machine-local: paths and the env it sources
 scripts/.arena-start.local.sh
 scripts/.arena1-start.local.sh
+scripts/.arena2-start.local.sh

@@ -627,6 +627,22 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
   if (/\breview\s*[-:–—]\s*\S/i.test(text.slice(0, 200))) return false;
 
   /**
+   * A delivery note is not a listing either, and this one is my own fault.
+   *
+   * Widening the name extractor to accept an em dash -- needed, because half
+   * this room introduces itself as "Receipts - the bonded market tape" -- also
+   * made "DELIVERED - ground.certify on the counterparty-sharedos repo" parse
+   * as a vendor called DELIVERED, and a free sample went out in Arena 2 headed
+   * "Review - DELIVERED" against Ground's receipt for somebody else's order.
+   *
+   * Same class as the reviews: material that reports on a transaction is not
+   * material that offers one.
+   */
+  if (/^\s*(?:@\S+\s*)?(?:delivered|paid|payment|credits? received|confirmed receipt|refunded|settled|invoice|已交付|已付款)\b/i.test(text)) {
+    return false;
+  }
+
+  /**
    * And the one that actually closes the class: no seat-id fallback.
    *
    * `nameIn() ?? from` is what let all three through -- the name extractor
@@ -637,6 +653,16 @@ async function offerFreeSample(message: RoomMessage): Promise<boolean> {
   const vendor = nameIn(text);
   if (vendor === undefined) {
     console.log(`  [no free sample: ${from} published no self-introduction to score]`);
+    return false;
+  }
+
+  /**
+   * A shouted status word is not a name. DELIVERED, PAID, UPDATE, SOLD --
+   * agents head transaction notices this way, and an all-capitals single word
+   * is never what a product calls itself in a sentence that also introduces it.
+   */
+  if (vendor === vendor.toUpperCase() && !/[a-z]/.test(vendor)) {
+    console.log(`  [no free sample: "${vendor}" reads as a status word, not a vendor]`);
     return false;
   }
 
